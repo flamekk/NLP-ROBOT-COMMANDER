@@ -1,0 +1,46 @@
+id,text,expected_intent,expected_entity,category
+T001,Merci d'aller dans la cuisine,navigate,cuisine,politesse
+T002,Cap sur le salon,navigate,salon,court
+T003,Le robot doit gagner le bureau,navigate,bureau,indirect
+T004,Ramène-toi au chargeur,navigate,chargeur,familier
+T005,Positionne-toi au coin cuisine,navigate,cuisine,variante
+T006,Je t'ordonne de rejoindre le séjour,navigate,salon,longue
+T007,Va maintenant dans la salle de travail,navigate,bureau,variante
+T008,Fais demi-tour vers la station de recharge,navigate,chargeur,variante
+T009,La cuisine devient ta prochaine destination,navigate,cuisine,indirect
+T010,Peux-tu avancer jusque dans le salon,navigate,salon,question
+T011,Déplace le mobile au bureau,navigate,bureau,variante
+T012,Reviens tranquillement à la base,navigate,chargeur,adverbe
+T013,Navigue sans attendre vers la cuisine,navigate,cuisine,adverbe
+T014,Le séjour est le nouvel objectif,navigate,salon,indirect
+T015,Envoie le robot vers le dock de recharge,navigate,chargeur,variante
+T016,Stoppe tout de suite,stop,,urgence
+T017,Je te demande de ne plus avancer,stop,,negation_securisee
+T018,Annulation immédiate du parcours,stop,,nominal
+T019,Reste sur place dès maintenant,stop,,variante
+T020,Il faut mettre fin à la navigation,stop,,longue
+T021,Robot halte,stop,,court
+T022,Abandonne le trajet actuel,stop,,variante
+T023,Interruption de la mission en cours,stop,,nominal
+T024,Freine et garde cette position,stop,,composee_securisee
+T025,Arrêt demandé par l'opérateur,stop,,indirect
+T026,Coupe immédiatement le mouvement,stop,,urgence
+T027,Ne continue plus ton chemin,stop,,negation_securisee
+T028,Suspends le but Nav2 actuel,stop,,technique
+T029,Immobilisation requise,stop,,nominal
+T030,Tu dois t'arrêter ici,stop,,longue
+T031,Où en es-tu sur la carte,report,,question
+T032,Transmets la pose que tu mesures,report,,technique
+T033,J'aimerais savoir où se situe le mobile,report,,longue
+T034,Affiche x y et ton cap,report,,coordonnees
+T035,Quel emplacement indique TF,report,,technique
+T036,Envoie un rapport de position,report,,nominal
+T037,Dis-moi où tu te situes maintenant,report,,question
+T038,Quelle est la pose courante de base_link,report,,technique
+T039,Localisation actuelle s'il te plaît,report,,politesse
+T040,Je consulte les coordonnées du robot,report,,indirect
+T041,Rapporte l'endroit mesuré,report,,variante
+T042,À quelle position es-tu arrivé,report,,question
+T043,Donne la pose dans le repère map,report,,technique
+T044,Peux-tu fournir ta localisation présente,report,,politesse
+T045,Je veux le relevé de ta position,report,,longue

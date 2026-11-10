@@ -1,0 +1,7 @@
+-r requirements.txt
+setuptools>=77.0.3,<80
+pytest>=8,<9
+ruff>=0.5,<1
+reportlab>=4,<5
+ipykernel>=6,<8
+
