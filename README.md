@@ -1,98 +1,133 @@
-# NLP Robot Commander
+# 🤖 NLP Robot Commander
+### Intelligent Natural Language Interface for Autonomous Mobile Robots
 
-Prototype HESTIM de commande d’un robot mobile TurtleBot3 par phrases françaises. Le système reconnaît exactement trois intentions :
+<p align="center">
+  <strong>HESTIM Engineering Project · Big Data & Artificial Intelligence</strong>
+</p>
 
-| Intention | Exemple | Effet |
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python" />
+  <img src="https://img.shields.io/badge/ROS%202-Humble-22314E?logo=ros" />
+  <img src="https://img.shields.io/badge/NLP-DistilBERT-orange" />
+  <img src="https://img.shields.io/badge/Navigation-Nav2-green" />
+  <img src="https://img.shields.io/badge/Simulation-Gazebo-purple" />
+  <img src="https://img.shields.io/badge/Tests-34%20passed-success" />
+  <img src="https://img.shields.io/badge/License-MIT-lightgrey" />
+</p>
+
+**NLP Robot Commander** is an intelligent natural-language interface designed to control a TurtleBot3 mobile robot through French commands.
+
+The project combines a fine-tuned DistilBERT intent classifier, a safety-oriented command-processing pipeline, ROS 2 communication, and Nav2 navigation actions. An optional local LLM backend adds contextual command handling and a lightweight SQLite conversation memory.
+
+The objective is to transform human language into validated robot actions while maintaining explicit safety constraints and traceable execution states.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---|---|
+| Natural Language Understanding | Recognizes French commands using a fine-tuned DistilBERT model |
+| Intent Classification | Supports `navigate`, `stop`, and `report` |
+| Entity Extraction | Identifies authorized robot destinations |
+| Safety Validation | Rejects ambiguous, denied, oversized, and out-of-domain commands |
+| Autonomous Navigation | Sends validated navigation goals to Nav2 |
+| Emergency Stop | Requests cancellation of active navigation goals |
+| Robot Status | Retrieves robot position through TF |
+| Optional Local LLM | Uses Ollama for contextual command interpretation |
+| Conversation Memory | Stores accepted commands in SQLite |
+| ROS 2 Integration | Connects the NLP pipeline to a ROS 2 robot architecture |
+| Simulation | Uses Gazebo and Nav2 for the TurtleBot3 environment |
+
+## 🧠 Supported Commands
+
+The system recognizes three primary intents:
+
+| Intent | Example | Expected behavior |
 |---|---|---|
-| `navigate` | « Rends-toi dans la cuisine » | Envoie un but `NavigateToPose` vers un waypoint autorisé |
-| `stop` | « Arrête-toi immédiatement » | Demande l’annulation du but et attend le résultat Nav2 |
-| `report` | « Où te trouves-tu ? » | Lit une transformation TF récente `map → base_link` |
+| `navigate` | « Rends-toi dans la cuisine » | Sends a `NavigateToPose` goal to an authorized waypoint |
+| `stop` | « Arrête-toi immédiatement » | Requests navigation cancellation and waits for the result |
+| `report` | « Où te trouves-tu ? » | Reads a recent `map → base_link` TF transformation |
 
-Toute commande vide, trop longue, niée, séquentielle, ambiguë, hors domaine ou visant une destination inconnue est refusée. Un arrêt explicite non nié a priorité sur les autres mots de la phrase.
+Commands are validated before being routed to ROS 2.
 
-## Résultats mesurés
+Unknown destinations, ambiguous instructions, negated commands, and invalid inputs are rejected.
 
-Mesures du 22 octobre 2026, graine 42 :
+An explicit, non-negated stop instruction receives priority over other words in the command.
 
-| Jeu | Taille | Accuracy | F1 macro | Remarque |
-|---|---:|---:|---:|---|
-| Validation figée | 36 | 97,22 % | 97,22 % | Meilleur checkpoint parmi 12 époques |
-| Test indépendant | 45 | 100,00 % | 100,00 % | 15 phrases par intention |
-| Sûreté/adversarial | 15 | 100,00 % | — | 15 décisions conformes attendues |
+---
 
-Ces résultats évaluent le NLP et le pipeline de décision local. Ils ne prouvent pas le succès d’une navigation réelle. Gazebo, Nav2, TF et l’arrêt physique doivent être validés sur Ubuntu avec les procédures de [`docs/checklist_demo.md`](docs/checklist_demo.md) et [`docs/ACTIONS_MANUELLES.md`](docs/ACTIONS_MANUELLES.md).
+## 🏗️ System Architecture
 
-## Architecture
+The architecture separates language understanding, safety validation, decision-making, and robot execution.
 
 ```mermaid
-flowchart LR
-    A[Texte terminal ou micro] --> B[Contrôles de sûreté]
-    B --> C{LLM local activé ?}
-    C -->|oui| M[Ollama + mémoire SQLite]
-    C -->|non ou secours explicite| D[DistilBERT 3 classes]
-    M --> E[Validation structurée]
-    D --> E
-    E -->|navigate| F[Action Nav2 /navigate_to_pose]
-    E -->|stop| G[Annulation suivie jusqu'au résultat]
-    E -->|report| H[TF map vers base_link]
-    F --> I[Statuts JSON]
-    G --> I
-    H --> I
+flowchart TD
+    A["User command<br/>Terminal or microphone"] --> B["Input validation"]
+    B --> C["Safety rules"]
+    C --> D{"NLP backend"}
+    D --> E["DistilBERT<br/>3-intent classifier"]
+    D --> F["Optional Ollama LLM"]
+    E --> G["Structured command validation"]
+    F --> G
+    G --> H{"Validated intent"}
+    H -->|navigate| I["Nav2 NavigateToPose"]
+    H -->|stop| J["Cancel navigation goal"]
+    H -->|report| K["TF map → base_link"]
+    I --> L["ROS 2 status events"]
+    J --> L
+    K --> L
+    L --> M["User feedback"]
 ```
 
-Le classifieur lexical est un mode de secours explicite. Il est désactivé par défaut afin qu’un checkpoint manquant ou corrompu ne soit jamais masqué silencieusement.
+### Processing Pipeline
 
-Le LLM est une extension locale et optionnelle. Il ne reçoit aucun accès à ROS 2 : il retourne seulement un JSON contraint, ensuite revérifié par les règles de sûreté et la liste blanche des waypoints. Sa « mémoire » ne modifie pas ses poids. Elle conserve au maximum 200 commandes acceptées dans SQLite et fournit les 8 plus récentes comme contexte. Cela permet par exemple `Va dans la cuisine`, puis `Refais la dernière commande`.
+1. **Input:** receive a natural-language command.
+2. **Validation:** check command length, structure, and safety conditions.
+3. **Intent recognition:** classify the command.
+4. **Entity extraction:** identify the requested destination when applicable.
+5. **Decision validation:** verify that the action is permitted.
+6. **ROS 2 execution:** route the validated command to the corresponding subsystem.
+7. **Feedback:** publish structured status events.
 
-## Arborescence utile
+### Safety-first design
 
-```text
-dataset/                         corpus et campagnes indépendantes
-scripts/                         audit, entraînement, évaluation, démo locale
-src/nlp_robot_commander/         package ROS 2 Python
-tests/                           tests NLP, routage et machine d’état
-artifacts/training_3intents/      métriques de validation mesurées
-artifacts/test_campaign_3intents/ métriques du test indépendant
-artifacts/safety_campaign_transformers/ résultats adversariaux
-docs/                            rapport, guides et protocoles
-```
+The NLP model does not directly control the robot.
 
-## Installation recommandée : WSL2 + Ubuntu 22.04
+Every predicted command passes through a deterministic validation layer. Navigation is restricted to an explicit waypoint whitelist, while stop requests follow a dedicated cancellation workflow.
 
-Le runtime de référence est entièrement Linux : Python 3.10, Ollama, SQLite,
-ROS 2 Humble, Nav2, Gazebo et RViz2 tournent dans WSL2. Le dépôt doit être
-cloné dans `~/projects`, pas sous `/mnt/c`.
+The optional LLM backend also has no direct access to ROS 2. It produces structured output that is independently validated before execution.
 
-Après avoir installé WSL2 et Ubuntu 22.04, ouvrez Ubuntu :
+---
 
-```bash
-mkdir -p ~/projects
-cd ~/projects
-git clone https://github.com/yayaSB/NLP-Robot-Commander.git
-cd NLP-Robot-Commander
-code .
-bash scripts/wsl_setup.sh
-```
+## 📊 Model Evaluation
 
-Le bootstrap installe la pile ROS/NLP, crée un `.venv` compatible avec
-`rclpy`, construit le workspace, lance les tests, installe Ollama dans WSL et
-télécharge `llama3.2:1b`. Vérification reproductible :
+The following measurements were obtained on October 22, 2026, using random seed 42.
 
-```bash
-bash scripts/wsl_check.sh
-```
+| Evaluation | Samples | Accuracy | Macro F1 |
+|---|---:|---:|---:|
+| Fixed validation set | 36 | 97.22% | 97.22% |
+| Independent test set | 45 | 100.00% | 100.00% |
+| Safety / adversarial evaluation | 15 | 100.00% expected decisions | — |
 
-Le guide complet, y compris l’installation de WSL et la migration du
-checkpoint, est dans
-[`docs/HOW_TO_FIRST_RUN_ON_VSCODE.md`](docs/HOW_TO_FIRST_RUN_ON_VSCODE.md).
+### Evaluation methodology
 
-## Entraînement et évaluation
+- The validation set contains 36 samples.
+- The independent test set contains 45 samples, with 15 examples per intent.
+- The safety campaign contains 15 adversarial or safety-oriented scenarios.
+- The selected DistilBERT checkpoint was obtained from a 12-epoch training campaign.
+
+**Important:** these results measure the NLP classifier and local decision pipeline. They do not demonstrate successful physical or simulated robot navigation. Gazebo, Nav2, TF, and stop behavior require separate end-to-end validation.
+
+### Reproduce the experiments
 
 ```bash
 python scripts/train_intent_classifier.py \
   --output-dir models/distilbert-robot-commander-3intents \
   --artifacts-dir artifacts/training_3intents \
-  --epochs 12 --batch-size 8 --seed 42
+  --epochs 12 \
+  --batch-size 8 \
+  --seed 42
 
 python scripts/evaluate_intent_classifier.py \
   --model models/distilbert-robot-commander-3intents \
@@ -103,128 +138,353 @@ python scripts/evaluate_safety_commands.py \
   --output-dir artifacts/safety_campaign_transformers
 ```
 
-Le dossier `models/` n’est pas versionné : le poids DistilBERT dépasse la limite de taille standard de GitHub. Il faut entraîner localement ou distribuer le checkpoint avec un stockage de modèles approprié.
+---
 
-Démo NLP locale dans WSL :
+## 🧰 Technology Stack
+
+| Category | Technologies |
+|---|---|
+| Programming | Python |
+| NLP | Hugging Face Transformers, DistilBERT |
+| Machine Learning | PyTorch, scikit-learn |
+| Local LLM | Ollama |
+| Memory | SQLite |
+| Robotics Middleware | ROS 2 Humble |
+| Navigation | Nav2 |
+| Robot Simulation | Gazebo, TurtleBot3 |
+| Visualization | RViz2 |
+| Testing | pytest |
+| Development Environment | Ubuntu, WSL 2, Docker |
+
+---
+
+## 🚀 Development Environment
+
+### Current Windows / WSL setup
+
+The current development environment is:
+
+| Component | Current status |
+|---|---|
+| Host OS | Windows |
+| Linux environment | Ubuntu 24.04.4 LTS |
+| WSL | WSL 2 |
+| Linux kernel | Microsoft WSL2 kernel |
+| Git | Installed |
+| Docker Desktop integration | Pending verification |
+| ROS 2 Humble simulation | Not yet validated in this environment |
+
+The WSL distribution is already installed and running. Docker Desktop integration must be enabled for Ubuntu before using the `docker` command from WSL.
+
+### Recommended ROS 2 runtime
+
+ROS 2 Humble targets Ubuntu 22.04 as its primary platform. The current Ubuntu 24.04 WSL distribution should not be treated as a native Humble installation environment without an explicitly compatible setup.
+
+For reproducibility, use a ROS 2 Humble-compatible Linux environment, such as a Docker container based on the official ROS Humble image.
+
+Official references:
+
+- [ROS 2 Humble](https://docs.ros.org/en/humble/)
+- [Docker Desktop with WSL 2](https://docs.docker.com/desktop/features/wsl/)
+- [Ubuntu on WSL](https://learn.microsoft.com/en-us/windows/wsl/)
+
+---
+
+## 📦 Installation and Project Setup
+
+### 1. Clone the repository
+
+Inside Ubuntu WSL:
+
+```bash
+mkdir -p ~/projects
+cd ~/projects
+
+git clone https://github.com/yayaSB/NLP-Robot-Commander.git
+
+cd NLP-Robot-Commander
+```
+
+Keep the project inside the Linux filesystem (`~/projects`) rather than `/mnt/c` for better Linux development and build performance.
+
+### 2. Configure Docker Desktop
+
+On Windows:
+
+1. Open Docker Desktop.
+2. Navigate to **Settings → Resources → WSL Integration**.
+3. Enable integration for Ubuntu.
+4. Apply changes and restart Docker Desktop.
+
+Verify from Ubuntu:
+
+```bash
+docker --version
+docker info
+docker ps
+```
+
+### 3. Prepare the ROS environment
+
+Use a ROS Humble-compatible environment for the ROS workspace and simulation.
+
+The project includes setup scripts:
+
+```bash
+bash scripts/wsl_setup.sh
+```
+
+The bootstrap script is intended to prepare the NLP and ROS development environment, create the Python environment, build the workspace, run tests, and configure Ollama.
+
+Check the actual prerequisites and supported Ubuntu version in:
+
+[`docs/HOW_TO_FIRST_RUN_ON_VSCODE.md`](docs/HOW_TO_FIRST_RUN_ON_VSCODE.md)
+
+Verify the environment:
+
+```bash
+bash scripts/wsl_check.sh
+```
+
+### 4. Restore the model checkpoint
+
+The `models/` directory is not versioned in Git because the DistilBERT checkpoint is larger than GitHub's standard file-size limit.
+
+Train the model locally using the training command above, or transfer the existing checkpoint through an appropriate model-storage mechanism.
+
+Expected model directory:
+
+```text
+models/
+└── distilbert-robot-commander-3intents/
+```
+
+---
+
+## 🧪 Local NLP Demo
+
+After preparing the Python environment and restoring the checkpoint:
 
 ```bash
 bash scripts/wsl_run_demo.sh --clear-memory
 ```
 
-## LLM local avec mémoire
+This runs the local NLP demonstration without requiring a successful Gazebo navigation session.
 
-Le backend utilise l’API locale d’[Ollama](https://docs.ollama.com/api/chat) et ses sorties JSON structurées. Aucun compte ni aucune clé API ne sont nécessaires. Après avoir installé Ollama, téléchargez une fois le petit modèle multilingue :
+---
+
+## 🧠 Optional LLM Backend and Memory
+
+The project includes an optional local LLM integration using Ollama.
+
+The LLM is used for structured command interpretation and contextual interactions. It does not receive direct access to ROS 2.
+
+### Install the model
 
 ```bash
 ollama pull llama3.2:1b
 ```
 
-Ollama doit être démarré dans WSL (`ollama serve` si le service systemd ne
-fonctionne pas). Le wrapper charge automatiquement DistilBERT lorsqu’il est
-présent :
+Start Ollama if its service is not already running:
+
+```bash
+ollama serve
+```
+
+Run the demo:
 
 ```bash
 bash scripts/wsl_run_demo.sh
 ```
 
-Essayez successivement :
+Example interaction:
 
 ```text
 Va dans la cuisine
 Refais la dernière commande
 ```
 
-Le deuxième résultat doit contenir `"source": "memory_rules"`, `"memory_used": true` et `"destination": "cuisine"`. Les références explicites à l’historique sont résolues directement dans SQLite afin de rester fiables même avec un petit LLM. Pour repartir sans historique, ajoutez `--clear-memory` au lancement. La base locale n’est pas versionnée par Git.
+The memory subsystem uses SQLite to store up to 200 accepted commands and provides the eight most recent commands as context.
 
-## Simulation ROS 2 Humble sous WSL2
+Explicit history references can be resolved directly through SQLite to improve reliability with a small local LLM.
 
-Après le bootstrap et la copie ou l’entraînement du checkpoint, reconstruisez
-et testez :
+To clear the history:
+
+```bash
+bash scripts/wsl_run_demo.sh --clear-memory
+```
+
+The database is local and is not versioned by Git.
+
+---
+
+## 🤖 ROS 2 Simulation
+
+The simulation integrates:
+
+- TurtleBot3
+- Gazebo
+- ROS 2 Humble
+- Nav2
+- AMCL localization
+- TF transformations
+- Project-specific apartment map and waypoints
+
+### Build the workspace
 
 ```bash
 bash scripts/wsl_build.sh
+```
+
+### Start the simulation
+
+```bash
 bash scripts/wsl_run_simulation.sh
 ```
 
-Le lancement par défaut utilise l'appartement fourni avec le projet. Il contient
-un couloir central, un salon, une cuisine, une chambre et un bureau séparés par
-des murs et des portes de 1,20 m. Dans un second terminal WSL :
+The project provides an apartment environment with:
 
-![Plan de l'appartement](docs/apartment_layout.svg)
+- Central corridor
+- Living room
+- Kitchen
+- Bedroom
+- Office
 
-Dans Gazebo, le salon est ocre, la cuisine bleue, la chambre violette, le
-bureau vert et le couloir gris. Le carré bleu du couloir représente le
-chargeur et la pose de départ du robot.
+![Apartment layout](docs/apartment_layout.svg)
+
+The apartment uses dedicated navigation waypoints and safe arrival zones designed to avoid collisions with walls and doorways.
+
+### Start the NLP terminal client
+
+In a second terminal:
 
 ```bash
 source scripts/wsl_env.sh
+
 ros2 run nlp_robot_commander terminal_client
 ```
 
-Le client redessine automatiquement l'invite `> ` après les statuts ROS
-asynchrones. Les destinations utilisent des zones d'arrivée sûres centrées juste
-derrière les portes afin d'éviter que le contrôleur ne coupe un angle de mur.
-
-Ne lancez qu'une seule instance de `wsl_run_simulation.sh` : le script refuse un
-second lancement, car deux stacks Nav2 portant les mêmes noms perturbent les buts.
-
-Pour observer les événements :
+### Monitor robot events
 
 ```bash
 source scripts/wsl_env.sh
+
 ros2 topic echo /nlp_commander/status
 ```
 
-Le lancement place Gazebo et AMCL à la même pose `(-4.0, 0.0, 0.0)`, sur le
-chargeur du couloir, et publie automatiquement `/initialpose` après réception
-du premier scan lidar. Les waypoints `salon`, `cuisine`, `bureau` et `chargeur`
-sont libres et connectés. Les sols colorés différencient visuellement les
-pièces. Pour régénérer les deux assets depuis une définition unique :
+### Simulation safety and reproducibility
+
+Only one instance of `wsl_run_simulation.sh` should be launched at a time. The script prevents multiple Nav2 stacks from interfering with one another.
+
+The simulation startup also initializes the robot and AMCL pose, then publishes `/initialpose` after receiving the first lidar scan.
+
+For a custom environment, provide both a map and a world file:
+
+```bash
+bash scripts/wsl_run_simulation.sh /path/to/map.yaml /path/to/world.world
+```
+
+To regenerate the apartment assets:
 
 ```bash
 python scripts/generate_apartment_assets.py
 ```
 
-Une simulation personnalisée doit fournir ensemble sa carte et son monde :
+**Simulation validation remains a separate requirement:** the presence of a running ROS 2 node or a recognized NLP command does not prove that the robot successfully reached its destination.
 
-```bash
-bash scripts/wsl_run_simulation.sh /chemin/map.yaml /chemin/monde.world
+---
+
+## 🛑 Stop and Safety Semantics
+
+The stop mechanism distinguishes four execution stages:
+
+| Event | Meaning |
+|---|---|
+| `stop_received` | Stop request received |
+| `cancellation_requested` / `cancellation_accepted` | Nav2 cancellation requested or accepted |
+| `stop_confirmed` | Action result is confirmed as canceled, or no goal was active |
+| `stop_unconfirmed` | Cancellation failed, timed out, or returned an incompatible result |
+
+The option `publish_zero_velocity_on_stop` is disabled by default.
+
+Publishing zero velocity alone is not considered proof that Nav2 has canceled its active goal.
+
+---
+
+## 📁 Repository Structure
+
+```text
+NLP-Robot-Commander/
+│
+├── dataset/                         # Training and evaluation datasets
+├── scripts/                         # Training, evaluation, setup and demo scripts
+├── src/
+│   └── nlp_robot_commander/         # ROS 2 Python package
+├── tests/                           # NLP, routing and state-machine tests
+├── models/                          # Local model checkpoints (not versioned)
+├── artifacts/
+│   ├── training_3intents/           # Training metrics
+│   ├── test_campaign_3intents/      # Independent test results
+│   └── safety_campaign_transformers/# Safety evaluation results
+├── docs/                            # Technical documentation
+├── output/                          # Reports and presentations
+└── README.md
 ```
 
-## Sémantique de l’arrêt
+---
 
-Les événements distinguent volontairement quatre étapes :
+## 📚 Documentation
 
-1. `stop_received` : la demande est reçue ;
-2. `cancellation_requested` / `cancellation_accepted` : Nav2 traite l’annulation ;
-3. `stop_confirmed` : le résultat de l’action est réellement `canceled`, ou aucun but n’était actif ;
-4. `stop_unconfirmed` : refus, erreur, expiration du délai ou résultat incompatible.
+| Resource | Description |
+|---|---|
+| [`docs/HOW_TO_FIRST_RUN_ON_VSCODE.md`](docs/HOW_TO_FIRST_RUN_ON_VSCODE.md) | Environment setup and first run |
+| [`docs/rapport_final.md`](docs/rapport_final.md) | Technical report and project audit |
+| [`docs/guide_utilisateur.md`](docs/guide_utilisateur.md) | User installation and operating guide |
+| [`docs/test_protocol.md`](docs/test_protocol.md) | Reproducible test protocol |
+| [`docs/failure_mode_catalogue.md`](docs/failure_mode_catalogue.md) | Failure-mode catalogue |
+| [`docs/checklist_demo.md`](docs/checklist_demo.md) | Demonstration checklist |
+| [`docs/ACTIONS_MANUELLES.md`](docs/ACTIONS_MANUELLES.md) | Manual Gazebo/Nav2 validation requirements |
+| [`NLP_Robot_Commander_Presentation.ipynb`](NLP_Robot_Commander_Presentation.ipynb) | Interactive project presentation |
+| [`output/pptx/NLP_Robot_Commander_Soutenance.pptx`](output/pptx/NLP_Robot_Commander_Soutenance.pptx) | Presentation with speaker notes |
+| [`output/pdf/rapport_final_nlp_robot_commander.pdf`](output/pdf/rapport_final_nlp_robot_commander.pdf) | Final technical report |
+| [`output/presentations/NLP_Robot_Commander_HESTIM_3_intentions.pptx`](output/presentations/NLP_Robot_Commander_HESTIM_3_intentions.pptx) | HESTIM defense presentation |
 
-L’option `publish_zero_velocity_on_stop` est `false` par défaut. Un message nul sur `/cmd_vel` ne constitue jamais une confirmation d’arrêt Nav2 et peut entrer en conflit avec un multiplexeur de vitesse.
+---
 
-## Documentation
+## ⚠️ Known Limitations
 
-- [`output/pptx/NLP_Robot_Commander_Soutenance.pptx`](output/pptx/NLP_Robot_Commander_Soutenance.pptx) : présentation PowerPoint de soutenance avec notes orales ;
-- [`NLP_Robot_Commander_Presentation.ipynb`](NLP_Robot_Commander_Presentation.ipynb) : notebook exécutable de démonstration et de présentation des résultats ;
-- [`docs/HOW_TO_FIRST_RUN_ON_VSCODE.md`](docs/HOW_TO_FIRST_RUN_ON_VSCODE.md) : installation complète WSL2/Ubuntu 22.04 et lancement dans VS Code ;
-- [`docs/rapport_final.md`](docs/rapport_final.md) : rapport technique et audit complet ;
-- [`docs/guide_utilisateur.md`](docs/guide_utilisateur.md) : installation et utilisation ;
-- [`docs/test_protocol.md`](docs/test_protocol.md) : protocole reproductible ;
-- [`docs/failure_mode_catalogue.md`](docs/failure_mode_catalogue.md) : catalogue des modes d’échec ;
-- [`docs/checklist_demo.md`](docs/checklist_demo.md) : déroulé de soutenance ;
-- [`docs/ACTIONS_MANUELLES.md`](docs/ACTIONS_MANUELLES.md) : validations Gazebo/Nav2 et preuves qui restent manuelles.
-- [`output/pdf/rapport_final_nlp_robot_commander.pdf`](output/pdf/rapport_final_nlp_robot_commander.pdf) : rapport PDF vérifié page par page ;
-- [`output/presentations/NLP_Robot_Commander_HESTIM_3_intentions.pptx`](output/presentations/NLP_Robot_Commander_HESTIM_3_intentions.pptx) : support de soutenance final.
+- The French training corpus is relatively small. A 100% score on 45 independent test examples does not guarantee generalization to every possible formulation.
+- The model checkpoint is not included in the Git repository.
+- Waypoints are calibrated for the project's apartment map and must be recalibrated for other environments.
+- NLP evaluation does not establish successful end-to-end robot navigation.
+- Gazebo, Nav2, TF, localization, and physical stop behavior require dedicated validation.
+- The LLM memory provides contextual information but does not perform online model retraining.
+- LLM output is non-deterministic and must always pass the validation pipeline.
+- If Ollama is unavailable, the configured fallback behavior determines whether the classifier is used or the command is rejected.
+- Microphone input may depend on an external speech-recognition service.
 
-## Limites
+---
 
-- Les waypoints fournis sont calibrés pour l'appartement du projet et doivent être recalibrés pour toute autre carte.
-- Aucun résultat Gazebo/Nav2 n’est inventé : cette validation reste manuelle sur Ubuntu 22.04.
-- Le corpus français reste petit ; le score de 100 % sur 45 phrases ne garantit pas la généralisation à toutes les formulations.
-- La mémoire fournit du contexte au LLM mais ne réalise pas de réentraînement en ligne. Une sortie LLM reste non déterministe et est toujours filtrée avant routage.
-- Si Ollama est indisponible et `llm_fallback_to_classifier` vaut `true`, le statut expose `source: classifier_fallback`. Avec `false`, la commande est refusée avec `LLM_UNAVAILABLE`.
-- L’entrée micro repose sur un service externe si `SpeechRecognition` est utilisé.
+## 🎯 Project Objectives
 
-Licence MIT.
-#   N L P - R O B O T - C O M M A N D E R  
- 
+This project explores the integration of several engineering disciplines:
+
+- Natural Language Processing
+- Machine Learning and model evaluation
+- Safety-oriented decision systems
+- Robotics middleware and autonomous navigation
+- Local LLM integration
+- Contextual memory management
+- Reproducible testing and software engineering
+
+The long-term objective is a reliable natural-language interface capable of translating human instructions into safe and traceable autonomous robot behavior.
+
+---
+
+## 👩‍💻 Project Context
+
+**Academic project — HESTIM**
+
+Developed as an engineering project in Big Data and Artificial Intelligence.
+
+**License:** MIT
